@@ -80,7 +80,7 @@ bool queue_insert_head(queue_t *q, const char *s) {
     if (newh == NULL) {
         return false;
     }
-    char *dest = malloc(strlen(s) + 1);
+    char *dest = calloc(strlen(s) + 1, sizeof(char));
     if (dest == NULL) {
         return false;
     }
@@ -118,7 +118,7 @@ bool queue_insert_tail(queue_t *q, const char *s) {
     if (newt == NULL) {
         return false;
     }
-    char *dest = malloc(strlen(s) + 1);
+    char *dest = calloc(strlen(s) + 1, sizeof(char));
     if (dest == NULL) {
         return false;
     }
@@ -163,7 +163,23 @@ bool queue_remove_head(queue_t *q, char *buf, size_t bufsize) {
         q->tail = NULL;
     }
     q->qSize--;
-    free(head->value);
+    char *s = head->value;
+    size_t i = 0;
+    size_t n = strlen(s);
+    char *ptr = buf;
+    while (ptr != NULL && i < n && i < bufsize - 1) {
+        *ptr = s[i];
+        i++;
+        ptr++;
+    }
+    if (ptr == NULL) {
+        if (i > 0) {
+            buf[i - 1] = '\0';
+        }
+    } else {
+        buf[i] = '\0';
+    }
+    free(s);
     free(head);
     return true;
 }
