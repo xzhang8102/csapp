@@ -125,7 +125,7 @@ extern int printf(const char *, ...);
  *   Rating: 2
  */
 long copyLSB(long x) {
-    return 2;
+    return x << 63 >> 63;
 }
 /*
  * dividePower2 - Compute x/(2^n), for 0 <= n <= 62
@@ -136,7 +136,17 @@ long copyLSB(long x) {
  *   Rating: 2
  */
 long dividePower2(long x, long n) {
-    return 2L;
+    // if (n == 0) {
+    //     return x;
+    // }
+    // if (x >= 0) {
+    //     return x >> n;
+    // }
+    // if ((x & 0x1L) == 0x1L) {
+    //     return dividePower2((x + 1) >> 1, n - 1);
+    // }
+    // return dividePower2(x >> 1, n - 1);
+    return (x + ((x >> 63) & ((0x1L << n) + ~0L))) >> n;
 }
 /*
  * distinctNegation - returns 1 if x != -x.
