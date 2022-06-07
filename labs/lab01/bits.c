@@ -156,7 +156,7 @@ long dividePower2(long x, long n) {
  *   Rating: 2
  */
 long distinctNegation(long x) {
-    return 2;
+    return !!(x ^ (~x + 1));
 }
 /*
  * anyEvenBit - return 1 if any even-numbered bit in word set to 1
