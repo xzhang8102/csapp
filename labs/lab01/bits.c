@@ -222,7 +222,11 @@ long replaceByte(long x, long n, long c) {
  *   Rating: 3
  */
 long conditional(long x, long y, long z) {
-    return 2L;
+    // convert x to either 0 or 1
+    long condition = !!x;
+    // ref: puzzle 01
+    long mask = condition << 63 >> 63;
+    return (mask & y) | (~mask & z);
 }
 /*
  * bitMask - Generate a mask consisting of all 1's
