@@ -239,7 +239,15 @@ long conditional(long x, long y, long z) {
  *   Rating: 3
  */
 long bitMask(long highbit, long lowbit) {
-    return 2L;
+    // lo = 0x111111...1000
+    // there are `lowbit` 0s in lo
+    long shift_lo = 63 + (~lowbit + 1);
+    long lo = 0x1L << 63 >> shift_lo;
+    // hi = 0x00000...111111
+    // there are `highbit` 1s in hi
+    long shift_hi = 63 + (~highbit + 1);
+    long hi = (~(0x1L << 63 >> shift_hi)) ^ (0x1L << highbit);
+    return hi & lo;
 }
 // 4
 /*
