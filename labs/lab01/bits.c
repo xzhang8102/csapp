@@ -188,7 +188,16 @@ long anyEvenBit(long x) {
  *   Rating: 3
  */
 long isLessOrEqual(long x, long y) {
-    return 2;
+    long signx = x >> 63;
+    long signy = y >> 63;
+    // diff_sign -> 0x1L or 0x0L
+    long diff_sign = (!signx) ^ (!signy);
+    // when sign is different
+    long a = diff_sign & signx;
+    // when sign is the same
+    long b = (!diff_sign) & ((x + (~y + 1)) >> 63);
+    // special case: x = LONG_MIN and y = LONG_MIN
+    return a | b | (!(x ^ y));
 }
 /*
  * replaceByte(x,n,c) - Replace byte n in x with c
