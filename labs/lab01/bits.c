@@ -258,71 +258,34 @@ long bitMask(long highbit, long lowbit) {
  *   Rating: 4
  */
 long isPalindrome(long x) {
-    long mask = 1L << 32;
-    long hi = (!!(x & mask)) << 31;
-    mask = 1L << 33;
-    hi = hi | (!!(x & mask) << 30);
-    mask = 1L << 34;
-    hi = hi | (!!(x & mask) << 29);
-    mask = 1L << 35;
-    hi = hi | (!!(x & mask) << 28);
-    mask = 1L << 36;
-    hi = hi | (!!(x & mask) << 27);
-    mask = 1L << 37;
-    hi = hi | (!!(x & mask) << 26);
-    mask = 1L << 38;
-    hi = hi | (!!(x & mask) << 25);
-    mask = 1L << 39;
-    hi = hi | (!!(x & mask) << 24);
-    mask = 1L << 40;
-    hi = hi | (!!(x & mask) << 23);
-    mask = 1L << 41;
-    hi = hi | (!!(x & mask) << 22);
-    mask = 1L << 42;
-    hi = hi | (!!(x & mask) << 21);
-    mask = 1L << 43;
-    hi = hi | (!!(x & mask) << 20);
-    mask = 1L << 44;
-    hi = hi | (!!(x & mask) << 19);
-    mask = 1L << 45;
-    hi = hi | (!!(x & mask) << 18);
-    mask = 1L << 46;
-    hi = hi | (!!(x & mask) << 17);
-    mask = 1L << 47;
-    hi = hi | (!!(x & mask) << 16);
-    mask = 1L << 48;
-    hi = hi | (!!(x & mask) << 15);
-    mask = 1L << 49;
-    hi = hi | (!!(x & mask) << 14);
-    mask = 1L << 50;
-    hi = hi | (!!(x & mask) << 13);
-    mask = 1L << 51;
-    hi = hi | (!!(x & mask) << 12);
-    mask = 1L << 52;
-    hi = hi | (!!(x & mask) << 11);
-    mask = 1L << 53;
-    hi = hi | (!!(x & mask) << 10);
-    mask = 1L << 54;
-    hi = hi | (!!(x & mask) << 9);
-    mask = 1L << 55;
-    hi = hi | (!!(x & mask) << 8);
-    mask = 1L << 56;
-    hi = hi | (!!(x & mask) << 7);
-    mask = 1L << 57;
-    hi = hi | (!!(x & mask) << 6);
-    mask = 1L << 58;
-    hi = hi | (!!(x & mask) << 5);
-    mask = 1L << 59;
-    hi = hi | (!!(x & mask) << 4);
-    mask = 1L << 60;
-    hi = hi | (!!(x & mask) << 3);
-    mask = 1L << 61;
-    hi = hi | (!!(x & mask) << 2);
-    mask = 1L << 62;
-    hi = hi | (!!(x & mask) << 1);
-    mask = 1L << 63;
-    hi = hi | (!!(x & mask));
-    return !((hi << 32) ^ (x << 32));
+    // ref: http://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
+    long v = x;
+    long mask = ~0L;
+    mask ^= (mask << 32);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x00000000ffffffff
+    v = ((v >> 32) & mask) | ((v << 32) & ~mask);
+    mask ^= (mask << 16);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x0000ffff0000ffff
+    v = ((v >> 16) & mask) | ((v << 16) & ~mask);
+    mask ^= (mask << 8);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x00ff00ff00ff00ff
+    v = ((v >> 8) & mask) | ((v << 8) & ~mask);
+    mask ^= (mask << 4);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x0f0f0f0f0f0f0f0f
+    v = ((v >> 4) & mask) | ((v << 4) & ~mask);
+    mask ^= (mask << 2);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x3333333333333333
+    v = ((v >> 2) & mask) | ((v << 2) & ~mask);
+    mask ^= (mask << 1);
+    // printf("mask = 0x%016lx\n", mask);
+    // mask = 0x5555555555555555
+    v = ((v >> 1) & mask) | ((v << 1) & ~mask);
+    return !(v ^ x);
 }
 /*
  * trueFiveEighths - multiplies by 5/8 rounding toward 0,
