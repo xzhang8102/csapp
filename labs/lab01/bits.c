@@ -313,13 +313,5 @@ long trueFiveEighths(long x) {
  *   Rating: 4
  */
 long logicalNeg(long x) {
-    long ans = ~x;
-    // bitwise `and` op for every bit of `neg`
-    ans = ans & (ans >> 32);
-    ans = ans & (ans >> 16);
-    ans = ans & (ans >> 8);
-    ans = ans & (ans >> 4);
-    ans = ans & (ans >> 2);
-    ans = ans & (ans >> 1);
-    return ans & 1L;
+    return ((x >> 63) | ((~x + 1L) >> 63)) + 1L;
 }
