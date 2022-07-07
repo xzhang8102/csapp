@@ -11,3 +11,6 @@ The inputs needs to be two integers and the first one is no larger than 7. The r
 
 ## Phase 4
 Follow the logic flow and find out the way out from the `func4` recursive call. (I am wondering if modifying values directly in registers and memory is cheating.)
+
+## Phase 5
+Decode the output string "flyers" with character mapping located at `0x4024b0`.
