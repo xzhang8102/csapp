@@ -14,3 +14,6 @@ Follow the logic flow and find out the way out from the `func4` recursive call. 
 
 ## Phase 5
 Decode the output string "flyers" with character mapping located at `0x4024b0`.
+
+## Phase 6
+See `phase6.c`.
