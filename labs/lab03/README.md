@@ -42,3 +42,8 @@ Change the return address to `touch2` during runtime.
 ### Level 3
 Change the return address to `touch3` during runtime.
 Exploit `push %rbx` from `touch3` to save string literal on stack.
+
+## Part 2
+
+### Level 2
+Overflow buffer with byte sequences: gadget 1's address, cookie value, gadget 2's address, touch2's address
