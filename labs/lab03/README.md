@@ -33,15 +33,16 @@ handout.
 
 > **Note**  
 > It seems that `%rsp` can only be set to `0x5561dca0` when calling required functions, otherwise segmentation fault may occur.
+
 ### Level 1
 Use buffer overflow in `Gets()` to overwrite the return address of `getbuf()`.
 
 ### Level 2
-Change the return address to `touch2` during runtime.
+Push the return address to `touch2` during runtime.
 
 ### Level 3
-Change the return address to `touch3` during runtime.
-Exploit `push %rbx` from `touch3` to save string literal on stack.
+Change `%rdi` to `%rsp` which points to the required string.
+Push the return address to `touch3` during runtime.
 
 ## Part 2
 
