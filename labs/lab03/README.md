@@ -48,3 +48,9 @@ Push the return address to `touch3` during runtime.
 
 ### Level 2
 Overflow buffer with byte sequences: gadget 1's address, cookie value, gadget 2's address, touch2's address
+
+### Level 3
+The tricky part is finding out there is a `add_xy` function in `farm.c`.
+And the rest is calculating `%rdi` to point to the required string literal.
+
+I solved this problem based on the solutions from [Exely/CSAPP-Labs](https://github.com/Exely/CSAPP-Labs/tree/master/labs/attack) and [Sorosliu1029/CSAPP-Labs](https://github.com/Sorosliu1029/CSAPP-Labs/tree/master/attack-lab).
