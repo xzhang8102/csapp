@@ -183,6 +183,8 @@ int main(int argc, char **argv)
             {
                 // hit and move the element to the tail
                 hit++;
+                if (mode == 'M')
+                    hit++;
                 if (verbose)
                 {
                     strcat(buffer, "hit");
