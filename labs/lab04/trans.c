@@ -15,31 +15,106 @@ void trans(int M, int N, int A[N][M], int B[M][N]);
 
 void transpose_32_by_32(int M, int N, int A[N][M], int B[M][N])
 {
-    int row, col, r, c, a0, a1, a2, a3, a4, a5, a6, a7;
+    int row, col, d, a0, a1, a2, a3, a4, a5, a6, a7;
     for (row = 0; row < 32; row += 8)
     {
         for (col = 0; col < 32; col += 8)
         {
             // A[row][col] marks the start of a block
-            for (r = row; r < row + 8; r++)
+            for (d = 0; d < 8; d++)
             {
-                c = col;
-                a0 = A[r][c];
-                a1 = A[r][c + 1];
-                a2 = A[r][c + 2];
-                a3 = A[r][c + 3];
-                a4 = A[r][c + 4];
-                a5 = A[r][c + 5];
-                a6 = A[r][c + 6];
-                a7 = A[r][c + 7];
-                B[c][r] = a0;
-                B[c + 1][r] = a1;
-                B[c + 2][r] = a2;
-                B[c + 3][r] = a3;
-                B[c + 4][r] = a4;
-                B[c + 5][r] = a5;
-                B[c + 6][r] = a6;
-                B[c + 7][r] = a7;
+                a0 = A[row + d][col];
+                a1 = A[row + d][col + 1];
+                a2 = A[row + d][col + 2];
+                a3 = A[row + d][col + 3];
+                a4 = A[row + d][col + 4];
+                a5 = A[row + d][col + 5];
+                a6 = A[row + d][col + 6];
+                a7 = A[row + d][col + 7];
+                B[col][row + d] = a0;
+                B[col + 1][row + d] = a1;
+                B[col + 2][row + d] = a2;
+                B[col + 3][row + d] = a3;
+                B[col + 4][row + d] = a4;
+                B[col + 5][row + d] = a5;
+                B[col + 6][row + d] = a6;
+                B[col + 7][row + d] = a7;
+            }
+        }
+    }
+}
+
+void transpose_64_by_64(int M, int N, int A[N][M], int B[M][N])
+{
+    // ref: https://github.com/TsundereChen/csapp-cache-lab/
+    int row, col, a0, a1, a2, a3, a4, a5, a6, a7;
+    // 8x8 block
+    for (row = 0; row < 64; row += 8)
+    {
+        for (col = 0; col < 64; col += 8)
+        {
+            // in a block
+            // top 4 rows
+            for (int r = row; r < row + 4; r++)
+            {
+                a0 = A[r][col];
+                a1 = A[r][col + 1];
+                a2 = A[r][col + 2];
+                a3 = A[r][col + 3];
+                a4 = A[r][col + 4];
+                a5 = A[r][col + 5];
+                a6 = A[r][col + 6];
+                a7 = A[r][col + 7];
+                B[col][r] = a0;
+                B[col][r + 4] = a7;
+                B[col + 1][r] = a1;
+                B[col + 1][r + 4] = a6;
+                B[col + 2][r] = a2;
+                B[col + 2][r + 4] = a5;
+                B[col + 3][r] = a3;
+                B[col + 3][r + 4] = a4;
+            }
+            // bottom 4 rows
+            for (int d = 0; d < 4; d++)
+            {
+                a0 = A[row + 4][col + 3 - d];
+                a4 = A[row + 4][col + 4 + d];
+                a1 = A[row + 5][col + 3 - d];
+                a5 = A[row + 5][col + 4 + d];
+                a2 = A[row + 6][col + 3 - d];
+                a6 = A[row + 6][col + 4 + d];
+                a3 = A[row + 7][col + 3 - d];
+                a7 = A[row + 7][col + 4 + d];
+                B[col + 4 + d][row + 0] = B[col + 3 - d][row + 4];
+                B[col + 4 + d][row + 1] = B[col + 3 - d][row + 5];
+                B[col + 4 + d][row + 2] = B[col + 3 - d][row + 6];
+                B[col + 4 + d][row + 3] = B[col + 3 - d][row + 7];
+                B[col + 3 - d][row + 4] = a0;
+                B[col + 3 - d][row + 5] = a1;
+                B[col + 3 - d][row + 6] = a2;
+                B[col + 3 - d][row + 7] = a3;
+                B[col + 4 + d][row + 4] = a4;
+                B[col + 4 + d][row + 5] = a5;
+                B[col + 4 + d][row + 6] = a6;
+                B[col + 4 + d][row + 7] = a7;
+            }
+        }
+    }
+}
+
+void transpose_61_by_67(int M, int N, int A[N][M], int B[M][N])
+{
+    // ref: https://github.com/TsundereChen/csapp-cache-lab/
+    for (int row = 0; row < 67; row += 16)
+    {
+        for (int col = 0; col < 64; col += 16)
+        {
+            for (int r = row; r < row + 16 && r < 67; r++)
+            {
+                for (int c = col; c < col + 16 && c < 61; c++)
+                {
+                    B[c][r] = A[r][c];
+                }
             }
         }
     }
@@ -61,8 +136,10 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
         transpose_32_by_32(M, N, A, B);
         break;
     case 64:
+        transpose_64_by_64(M, N, A, B);
         break;
     case 61:
+        transpose_61_by_67(M, N, A, B);
         break;
     default:
         trans(M, N, A, B);
@@ -106,7 +183,7 @@ void registerFunctions()
     registerTransFunction(transpose_submit, transpose_submit_desc);
 
     /* Register any additional transpose functions */
-    registerTransFunction(trans, trans_desc);
+    // registerTransFunction(trans, trans_desc);
 }
 
 /*
