@@ -2,6 +2,7 @@
 #ifndef __CSAPP_H__
 #define __CSAPP_H__
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,5 +21,8 @@ void app_error(char *msg);
 pid_t Fork(void);
 
 char *Fgets(char *s, int size, FILE *stream);
+
+void Pause(void);
+void Kill(pid_t pid, int signum);
 
 #endif // !__CSAPP_H__

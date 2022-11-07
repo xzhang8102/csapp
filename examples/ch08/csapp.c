@@ -31,3 +31,16 @@ char *Fgets(char *s, int size, FILE *stream)
 
     return rptr;
 }
+
+void Pause(void)
+{
+    (void)pause();
+    return;
+}
+
+void Kill(pid_t pid, int signum)
+{
+    int rc;
+    if ((rc = kill(pid, signum)) < 0)
+        unix_error("Kill error");
+}
