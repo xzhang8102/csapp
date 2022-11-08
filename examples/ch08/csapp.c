@@ -38,11 +38,29 @@ void Pause(void)
     return;
 }
 
+unsigned int Sleep(unsigned int secs)
+{
+    unsigned int rc;
+
+    if ((rc = sleep(secs)) < 0)
+        unix_error("Sleep error");
+    return rc;
+}
+
 void Kill(pid_t pid, int signum)
 {
     int rc;
     if ((rc = kill(pid, signum)) < 0)
         unix_error("Kill error");
+}
+
+pid_t Waitpid(pid_t pid, int *iptr, int options)
+{
+    pid_t retpid;
+
+    if ((retpid = waitpid(pid, iptr, options)) < 0)
+        unix_error("Waitpid error");
+    return (retpid);
 }
 
 handler_t *Signal(int signum, handler_t *handler);
@@ -101,8 +119,8 @@ int Sigsuspend(const sigset_t *set)
 static size_t sio_strlen(char s[])
 {
     size_t i = 0;
-    while (s[i++] != '\0')
-        ;
+    while (s[i] != '\0')
+        i++;
     return i;
 }
 
