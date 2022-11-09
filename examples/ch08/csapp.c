@@ -22,6 +22,12 @@ pid_t Fork()
     return pid;
 }
 
+void Execve(const char *filename, char *const argv[], char *const envp[])
+{
+    if (execve(filename, argv, envp) < 0)
+        unix_error("Execve error");
+}
+
 char *Fgets(char *s, int size, FILE *stream)
 {
     char *rptr;
@@ -63,7 +69,17 @@ pid_t Waitpid(pid_t pid, int *iptr, int options)
     return (retpid);
 }
 
-handler_t *Signal(int signum, handler_t *handler);
+handler_t *Signal(int signum, handler_t *handler)
+{
+    struct sigaction action, old_action;
+    action.sa_handler = handler;
+    sigemptyset(&action.sa_mask); // block signals of type being handled
+    action.sa_flags = SA_RESTART; // restart syscalls if possible
+    if (sigaction(signum, &action, &old_action) < 0)
+        unix_error("Signal error");
+    return old_action.sa_handler;
+}
+
 void Sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
     if (sigprocmask(how, set, oldset) < 0)
