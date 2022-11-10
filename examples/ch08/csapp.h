@@ -2,6 +2,7 @@
 #ifndef __CSAPP_H__
 #define __CSAPP_H__
 
+#include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
