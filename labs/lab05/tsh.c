@@ -181,6 +181,29 @@ void eval(char *cmdline)
     {
         if (!strcmp(argv[0], "jobs"))
             listjobs(jobs);
+        if (!strcmp(argv[0], "bg"))
+        {
+            if (argv[1])
+            {
+                int job_id;
+                sscanf(argv[1], "%%%d", &job_id);
+                struct job_t *job;
+                if ((job = getjobjid(jobs, job_id)))
+                {
+                    if (job->state == ST)
+                    {
+                        if (kill(-(job->pid), SIGCONT) < 0)
+                            unix_error("kill error");
+                        else
+                        {
+                            job->state = BG;
+                            printf("[%d] (%d) %s", job->jid, job->pid,
+                                   job->cmdline);
+                        }
+                    }
+                }
+            }
+        }
     }
     else
     {
@@ -202,11 +225,30 @@ void eval(char *cmdline)
             if (addjob(jobs, pid, FG, cmdline))
             {
                 int status;
-                if (waitpid(pid, &status, 0) < 0)
+                if (waitpid(pid, &status, WUNTRACED) < 0)
                     unix_error("waitfg: waitpid error");
-                if (!deletejob(jobs, pid))
-                    app_error("deletejob error");
-            } else
+                if (WIFEXITED(status))
+                {
+                    if (!deletejob(jobs, pid))
+                        app_error("deletejob error");
+                }
+                if (WIFSIGNALED(status))
+                {
+                    printf("Job [%d] (%d) terminated by signal %d\n",
+                           pid2jid(pid), pid, WTERMSIG(status));
+                    if (!deletejob(jobs, pid))
+                        app_error("deletejob error");
+                }
+                if (WIFSTOPPED(status))
+                {
+                    printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid),
+                           pid, WSTOPSIG(status));
+                    struct job_t *job;
+                    if ((job = getjobpid(jobs, pid)))
+                        job->state = ST;
+                }
+            }
+            else
                 app_error("addjob error");
         }
         else
@@ -214,7 +256,8 @@ void eval(char *cmdline)
             if (addjob(jobs, pid, BG, cmdline))
             {
                 printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
-            } else
+            }
+            else
                 app_error("addjob error");
         }
     }
@@ -293,6 +336,8 @@ int builtin_cmd(char **argv)
         exit(0);
     if (!strcmp(argv[0], "jobs"))
         return 1;
+    if (!strcmp(argv[0], "bg"))
+        return 1;
     return 0; /* not a builtin command */
 }
 
@@ -340,11 +385,6 @@ void sigint_handler(int sig)
     {
         if (kill(-pid, sig) < 0)
             unix_error("kill error");
-        else
-        {
-            printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, sig);
-            fflush(stdout);
-        }
     }
     return;
 }
@@ -356,6 +396,12 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig)
 {
+    pid_t pid;
+    if ((pid = fgpid(jobs)))
+    {
+        if (kill(-pid, sig) < 0)
+            unix_error("kill error");
+    }
     return;
 }
 
