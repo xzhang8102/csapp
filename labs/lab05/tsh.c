@@ -170,7 +170,39 @@ int main(int argc, char **argv)
  */
 void eval(char *cmdline)
 {
-    return;
+    char *argv[MAXARGS];
+    char buf[MAXLINE];
+    strcpy(buf, cmdline);
+    int bg = parseline(buf, argv);
+    if (argv[0] == NULL)
+        return;
+    pid_t pid;
+    if (builtin_cmd(argv))
+    {
+        printf("executing builtin cmd.\n");
+    }
+    else
+    {
+        pid = fork();
+        if (pid < 0)
+            unix_error("fork error");
+        else if (pid == 0)
+        {
+            if (execve(argv[0], argv, environ) < 0)
+            {
+                printf("can not run task: %s.\n", argv[0]);
+                exit(0);
+            }
+        }
+        if (!bg)
+        {
+            int status;
+            if (waitpid(pid, &status, 0) < 0)
+                unix_error("waitfg: waitpid error");
+        }
+        else
+            printf("%d %s\n", pid, cmdline);
+    }
 }
 
 /*
@@ -242,6 +274,8 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv)
 {
+    if (!strcmp(argv[0], "quit"))
+        exit(0);
     return 0; /* not a builtin command */
 }
 
