@@ -177,35 +177,7 @@ void eval(char *cmdline)
     if (argv[0] == NULL)
         return;
     pid_t pid;
-    if (builtin_cmd(argv))
-    {
-        if (!strcmp(argv[0], "jobs"))
-            listjobs(jobs);
-        if (!strcmp(argv[0], "bg"))
-        {
-            if (argv[1])
-            {
-                int job_id;
-                sscanf(argv[1], "%%%d", &job_id);
-                struct job_t *job;
-                if ((job = getjobjid(jobs, job_id)))
-                {
-                    if (job->state == ST)
-                    {
-                        if (kill(-(job->pid), SIGCONT) < 0)
-                            unix_error("kill error");
-                        else
-                        {
-                            job->state = BG;
-                            printf("[%d] (%d) %s", job->jid, job->pid,
-                                   job->cmdline);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    else
+    if (!builtin_cmd(argv))
     {
         pid = fork();
         if (pid < 0)
@@ -223,40 +195,14 @@ void eval(char *cmdline)
         if (!bg)
         {
             if (addjob(jobs, pid, FG, cmdline))
-            {
-                int status;
-                if (waitpid(pid, &status, WUNTRACED) < 0)
-                    unix_error("waitfg: waitpid error");
-                if (WIFEXITED(status))
-                {
-                    if (!deletejob(jobs, pid))
-                        app_error("deletejob error");
-                }
-                if (WIFSIGNALED(status))
-                {
-                    printf("Job [%d] (%d) terminated by signal %d\n",
-                           pid2jid(pid), pid, WTERMSIG(status));
-                    if (!deletejob(jobs, pid))
-                        app_error("deletejob error");
-                }
-                if (WIFSTOPPED(status))
-                {
-                    printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid),
-                           pid, WSTOPSIG(status));
-                    struct job_t *job;
-                    if ((job = getjobpid(jobs, pid)))
-                        job->state = ST;
-                }
-            }
+                waitfg(pid);
             else
                 app_error("addjob error");
         }
         else
         {
             if (addjob(jobs, pid, BG, cmdline))
-            {
                 printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
-            }
             else
                 app_error("addjob error");
         }
@@ -335,9 +281,20 @@ int builtin_cmd(char **argv)
     if (!strcmp(argv[0], "quit"))
         exit(0);
     if (!strcmp(argv[0], "jobs"))
+    {
+        listjobs(jobs);
         return 1;
+    }
     if (!strcmp(argv[0], "bg"))
+    {
+        do_bgfg(argv);
         return 1;
+    }
+    if (!strcmp(argv[0], "fg"))
+    {
+        do_bgfg(argv);
+        return 1;
+    }
     return 0; /* not a builtin command */
 }
 
@@ -346,7 +303,39 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv)
 {
-    return;
+    if (argv[1])
+    {
+        int job_id;
+        sscanf(argv[1], "%%%d", &job_id);
+        struct job_t *job;
+        if ((job = getjobjid(jobs, job_id)))
+        {
+            if (!strcmp(argv[0], "bg"))
+            {
+                if (job->state == ST)
+                {
+                    if (kill(-(job->pid), SIGCONT) < 0)
+                        unix_error("kill error");
+                    else
+                    {
+                        job->state = BG;
+                        printf("[%d] (%d) %s", job->jid, job->pid,
+                               job->cmdline);
+                    }
+                }
+            }
+            if (!strcmp(argv[0], "fg"))
+            {
+                if (job->state == ST)
+                {
+                    if (kill(-(job->pid), SIGCONT) < 0)
+                        unix_error("kill error");
+                }
+                job->state = FG;
+                waitfg(job->pid);
+            }
+        }
+    }
 }
 
 /*
@@ -354,7 +343,29 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    return;
+    int status;
+    if (waitpid(pid, &status, WUNTRACED) < 0)
+        unix_error("waitfg: waitpid error");
+    if (WIFEXITED(status))
+    {
+        if (!deletejob(jobs, pid))
+            app_error("deletejob error");
+    }
+    if (WIFSIGNALED(status))
+    {
+        printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid,
+               WTERMSIG(status));
+        if (!deletejob(jobs, pid))
+            app_error("deletejob error");
+    }
+    if (WIFSTOPPED(status))
+    {
+        printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid,
+               WSTOPSIG(status));
+        struct job_t *job;
+        if ((job = getjobpid(jobs, pid)))
+            job->state = ST;
+    }
 }
 
 /*****************
