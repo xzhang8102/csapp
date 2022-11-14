@@ -179,15 +179,18 @@ void eval(char *cmdline)
     pid_t pid;
     if (builtin_cmd(argv))
     {
-        printf("executing builtin cmd.\n");
+        if (!strcmp(argv[0], "jobs"))
+            listjobs(jobs);
     }
     else
     {
         pid = fork();
         if (pid < 0)
             unix_error("fork error");
-        else if (pid == 0)
+        if (pid == 0)
         {
+            if (setpgid(0, 0) < 0)
+                unix_error("setpgid error");
             if (execve(argv[0], argv, environ) < 0)
             {
                 printf("can not run task: %s.\n", argv[0]);
@@ -196,12 +199,24 @@ void eval(char *cmdline)
         }
         if (!bg)
         {
-            int status;
-            if (waitpid(pid, &status, 0) < 0)
-                unix_error("waitfg: waitpid error");
+            if (addjob(jobs, pid, FG, cmdline))
+            {
+                int status;
+                if (waitpid(pid, &status, 0) < 0)
+                    unix_error("waitfg: waitpid error");
+                if (!deletejob(jobs, pid))
+                    app_error("deletejob error");
+            } else
+                app_error("addjob error");
         }
         else
-            printf("%d %s\n", pid, cmdline);
+        {
+            if (addjob(jobs, pid, BG, cmdline))
+            {
+                printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+            } else
+                app_error("addjob error");
+        }
     }
 }
 
@@ -276,6 +291,8 @@ int builtin_cmd(char **argv)
 {
     if (!strcmp(argv[0], "quit"))
         exit(0);
+    if (!strcmp(argv[0], "jobs"))
+        return 1;
     return 0; /* not a builtin command */
 }
 
@@ -318,6 +335,17 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig)
 {
+    pid_t pid;
+    if ((pid = fgpid(jobs)))
+    {
+        if (kill(-pid, sig) < 0)
+            unix_error("kill error");
+        else
+        {
+            printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, sig);
+            fflush(stdout);
+        }
+    }
     return;
 }
 
