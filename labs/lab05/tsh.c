@@ -118,6 +118,14 @@ void Sigfillset(sigset_t *set)
     return;
 }
 
+void Kill(pid_t pid, int signum)
+{
+    int rc;
+
+    if ((rc = kill(pid, signum)) < 0)
+        unix_error("Kill error");
+}
+
 /*************************************************************
  * The Sio (Signal-safe I/O) package - simple reentrant output
  * functions that are safe for signal handlers.
@@ -468,22 +476,15 @@ void do_bgfg(char **argv)
         {
             if (job->state == ST)
             {
-                if (kill(-(job->pid), SIGCONT) < 0)
-                    unix_error("kill error");
-                else
-                {
-                    job->state = BG;
-                    printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
-                }
+                Kill(-(job->pid), SIGCONT);
+                job->state = BG;
+                printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
             }
         }
         if (!strcmp(argv[0], "fg"))
         {
             if (job->state == ST)
-            {
-                if (kill(-(job->pid), SIGCONT) < 0)
-                    unix_error("kill error");
-            }
+                Kill(-(job->pid), SIGCONT);
             job->state = FG;
             waitfg(job->pid);
         }
@@ -566,7 +567,7 @@ void sigchld_handler(int sig)
                 job->state = ST;
         }
         if (sigprocmask(SIG_SETMASK, &prev_all, NULL) < 0)
-            unix_error("sigprocmask error");
+            Sio_error("sigprocmask error");
     }
     if (errno && errno != ECHILD)
         Sio_error("waitpid error");
