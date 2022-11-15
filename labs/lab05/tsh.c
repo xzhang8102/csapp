@@ -377,29 +377,8 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-    int status;
-    if (waitpid(pid, &status, WUNTRACED) < 0)
-        unix_error("waitfg: waitpid error");
-    if (WIFEXITED(status))
-    {
-        if (!deletejob(jobs, pid))
-            app_error("deletejob error");
-    }
-    if (WIFSIGNALED(status))
-    {
-        printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid,
-               WTERMSIG(status));
-        if (!deletejob(jobs, pid))
-            app_error("deletejob error");
-    }
-    if (WIFSTOPPED(status))
-    {
-        printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid,
-               WSTOPSIG(status));
-        struct job_t *job;
-        if ((job = getjobpid(jobs, pid)))
-            job->state = ST;
-    }
+    while (pid == fgpid(jobs))
+        ;
 }
 
 /*****************
@@ -419,30 +398,34 @@ void sigchld_handler(int sig)
     sigset_t mask_all, prev_all;
     pid_t pid;
     if (sigfillset(&mask_all) < 0)
-        (void)!write(STDOUT_FILENO, "sigfillset error", 16);
+        unix_error("sigfillset error");
     int status;
     while ((pid = waitpid(-1, &status, WUNTRACED | WNOHANG)) > 0)
     {
         if (sigprocmask(SIG_BLOCK, &mask_all, &prev_all) < 0)
-            (void)!write(STDOUT_FILENO, "sigprocmask error", 17);
+            unix_error("sigprocmask error");
         if (WIFEXITED(status))
         {
             if (!deletejob(jobs, pid))
-                (void)!write(STDOUT_FILENO, "deletejob error", 15);
+                app_error("deletejob error");
         }
         if (WIFSIGNALED(status))
         {
+            printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid,
+                   WTERMSIG(status));
             if (!deletejob(jobs, pid))
-                (void)!write(STDOUT_FILENO, "deletejob error", 15);
+                app_error("deletejob error");
         }
         if (WIFSTOPPED(status))
         {
+            printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid,
+                   WSTOPSIG(status));
             struct job_t *job;
             if ((job = getjobpid(jobs, pid)))
                 job->state = ST;
         }
         if (sigprocmask(SIG_SETMASK, &prev_all, NULL) < 0)
-            (void)!write(STDOUT_FILENO, "sigprocmask error", 17);
+            unix_error("sigprocmask error");
     }
     errno = olderrno;
 }
