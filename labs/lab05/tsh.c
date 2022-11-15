@@ -126,6 +126,15 @@ void Kill(pid_t pid, int signum)
         unix_error("Kill error");
 }
 
+unsigned int Sleep(unsigned int secs)
+{
+    unsigned int rc;
+
+    if ((rc = sleep(secs)) < 0)
+        unix_error("Sleep error");
+    return rc;
+}
+
 /*************************************************************
  * The Sio (Signal-safe I/O) package - simple reentrant output
  * functions that are safe for signal handlers.
@@ -505,7 +514,7 @@ void do_bgfg(char **argv)
 void waitfg(pid_t pid)
 {
     while (pid == fgpid(jobs))
-        ;
+        Sleep(1);
 }
 
 /*****************
