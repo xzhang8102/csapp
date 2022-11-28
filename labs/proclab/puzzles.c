@@ -150,20 +150,32 @@ void printAletter();
 /* @param pid - the pid of the child process*/
 void racer1(int pid)
 {
-  /*do not remove this line*/
-  printAletter();
+    int status;
+    if (waitpid(pid, &status, 0))
+    {
+        if (WIFEXITED(status)) {
+            /*do not remove this line*/
+            printAletter();
+        }
+    }
 }
 
 void setup_race2()
 {
-
+    sigset_t mask_chld;
+    sigaddset(&mask_chld, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask_chld, NULL);
 }
 
 /* @param pid - the pid of the child process*/
 void racer2(int pid)
 {
-  /*do not remove this line*/
-  printAletter();
+    sigset_t mask;
+    /*do not remove this line*/
+    printAletter();
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_UNBLOCK, &mask, NULL);
+    waitpid(pid, NULL, 0);
 }
 
 /*****************************************************************************\
