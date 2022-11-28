@@ -271,13 +271,52 @@ void reaper(int sig)
 /** You need to call this in each of your signal handler */
 void signal_received(int signum);
 
+volatile sig_atomic_t hit;
+
+void sig_handler(int sig)
+{
+    signal_received(sig);
+    hit = 1;
+}
+
+typedef void handler_t(int sig) ;
+
+handler_t *Signal(int signum, handler_t *handler)
+{
+    struct sigaction action, old_action;
+    action.sa_handler = handler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = SA_RESTART;
+    if (sigaction(signum, &action, &old_action) < 0)
+        fprintf(stderr, "Signal error");
+    return old_action.sa_handler;
+}
+
 /** 
  * Setup your signal handlers here.
  *
  */
 void shower_setup(void)
 { 
+    sigset_t mask;
+    hit = 0;
+    Signal(SIGALRM, sig_handler);
+    Signal(SIGUSR1, sig_handler);
+    Signal(SIGUSR2, sig_handler);
+    Signal(SIGCONT, sig_handler);
+    Signal(SIGCHLD, sig_handler);
+    sigfillset(&mask);
+    sigprocmask(SIG_BLOCK, &mask, NULL);
+}
 
+void shower_helper(int sig)
+{
+    sigset_t tmp;
+    sigfillset(&tmp);
+    sigdelset(&tmp, sig);
+    while (!hit)
+        sigsuspend(&tmp);
+    hit = 0;
 }
 
 /**
@@ -285,13 +324,10 @@ void shower_setup(void)
  */
 void shower_run(void)
 {
-    /* Please remove the loop below when you start on this puzzle.
-     * It acts as a delay so that you can see some
-     * words get printed out.     */
-    int i;
-    for (i = 0; i < 10; i ++)
-    {
-        sleep(1);
-    }
+    shower_helper(SIGALRM);
+    shower_helper(SIGUSR1);
+    shower_helper(SIGUSR2);
+    shower_helper(SIGCONT);
+    shower_helper(SIGCHLD);
 }
 
