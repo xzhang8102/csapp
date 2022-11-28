@@ -13,9 +13,9 @@
 #
 # 
 
-CC=gcc
+CC=gcc-4.8
 CFLAGS=-c -Wall -pedantic -O1
-LDFLAGS= -lpthread  
+LDFLAGS= -pthread  
 
 all:  driver 
 

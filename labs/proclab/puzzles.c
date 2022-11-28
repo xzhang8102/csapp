@@ -73,6 +73,14 @@ sighandler_t set_alarm_handler(sighandler_t alarm_handler)
     return old_action.sa_handler;
 }
 
+volatile sig_atomic_t timeout = 0;
+
+void alarm_handler(int sig)
+{
+    timeout = 1;
+    return;
+}
+
 /**
  * Reads a line from STDIN within a timeout period.
  *
@@ -110,18 +118,23 @@ ssize_t tgets(char* buf, int buf_size, int timeout_secs)
     ssize_t num_read = 0;
     
     /* TODO: set up your alarm handler here */
+    sighandler_t old_handler = set_alarm_handler(alarm_handler);
     
     /* Use this to read a line */
+    alarm(timeout_secs);
     num_read = mygets(buf, buf_size);
     
     /* TODO: restore alarm handler */
-    
-    
+    set_alarm_handler(old_handler);
     /* TODO: check the return value of mygets */
-    
-
+    if (num_read < 0) {
+        if (timeout) {
+            return 0;
+        }
+        return num_read;
+    }
     /* TODO: change the return value  */
-    return 0;
+    return num_read;
 }
 
 /*****************************************************************************\
