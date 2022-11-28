@@ -186,7 +186,23 @@ void racer2(int pid)
 
 void decipher(const char* encrypted_words[])
 {
-    
+    char **ptr;
+    char *argv[3];
+    extern char **environ;
+    argv[0] = "./decipher";
+    argv[2] = NULL;
+    for (ptr = (char **)encrypted_words; *ptr != NULL; ptr++) {
+        pid_t pid;
+        pid = fork();
+        if (pid < 0)
+            exit(1);
+        if (pid == 0) {
+            argv[1] = *ptr;
+            if (execve(argv[0], argv, environ) < 0)
+              exit(1);
+        } else
+            waitpid(pid, NULL, 0);
+    }
 }
 
 
