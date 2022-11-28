@@ -213,7 +213,18 @@ void decipher(const char* encrypted_words[])
 \*****************************************************************************/
 void counter(int num_direct_children)
 {
-  exit(0);    
+    int total;
+    int status;
+    if (num_direct_children == 0) {
+        exit(1);
+    }
+    total = 1;
+    while (wait(&status) > 0) {
+        if (WIFEXITED(status)) {
+            total += WEXITSTATUS(status);
+        }
+    }
+    exit(total);
 }
 
 /*****************************************************************************\
