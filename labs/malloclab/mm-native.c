@@ -15,17 +15,18 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "memlib.h"
 #include "mm.h"
+#include "memlib.h"
 
 /* If you want debugging output, use the following macro.  When you hand
  * in, remove the #define DEBUG line. */
 #define DEBUG
 #ifdef DEBUG
-#define dbg_printf(...) printf(__VA_ARGS__)
+# define dbg_printf(...) printf(__VA_ARGS__)
 #else
-#define dbg_printf(...)
+# define dbg_printf(...)
 #endif
+
 
 /* do not change the following! */
 #ifdef DRIVER
@@ -40,18 +41,19 @@
 #define ALIGNMENT 8
 
 /* rounds up to the nearest multiple of ALIGNMENT */
-#define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~0x7)
+#define ALIGN(size) (((size) + (ALIGNMENT-1)) & ~0x7)
+
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
-#define SIZE_PTR(p) ((size_t *)(((char *)(p)) - SIZE_T_SIZE))
+#define SIZE_PTR(p)  ((size_t*)(((char*)(p)) - SIZE_T_SIZE))
 
 /*
  * mm_init - Called when a new trace starts.
  */
 int mm_init(void)
 {
-    return 0;
+  return 0;
 }
 
 /*
@@ -60,28 +62,27 @@ int mm_init(void)
  */
 void *malloc(size_t size)
 {
-    int newsize = ALIGN(size + SIZE_T_SIZE);
-    unsigned char *p = mem_sbrk(newsize);
-    // dbg_printf("malloc %u => %p\n", size, p);
+  int newsize = ALIGN(size + SIZE_T_SIZE);
+  unsigned char *p = mem_sbrk(newsize);
+  //dbg_printf("malloc %u => %p\n", size, p);
 
-    if ((long)p < 0)
-        return NULL;
-    else
-    {
-        p += SIZE_T_SIZE;
-        *SIZE_PTR(p) = size;
-        return p;
-    }
+  if ((long)p < 0)
+    return NULL;
+  else {
+    p += SIZE_T_SIZE;
+    *SIZE_PTR(p) = size;
+    return p;
+  }
 }
 
 /*
  * free - We don't know how to free a block.  So we ignore this call.
  *      Computers have big memories; surely it won't be a problem.
  */
-void free(void *ptr)
-{
-    /*Get gcc to be quiet */
-    ptr = ptr;
+void free(void *ptr){
+	/*Get gcc to be quiet */
+	ptr = ptr;
+
 }
 
 /*
@@ -91,62 +92,57 @@ void free(void *ptr)
  */
 void *realloc(void *oldptr, size_t size)
 {
-    size_t oldsize;
-    void *newptr;
+  size_t oldsize;
+  void *newptr;
 
-    /* If size == 0 then this is just free, and we return NULL. */
-    if (size == 0)
-    {
-        free(oldptr);
-        return 0;
-    }
-
-    /* If oldptr is NULL, then this is just malloc. */
-    if (oldptr == NULL)
-    {
-        return malloc(size);
-    }
-
-    newptr = malloc(size);
-
-    /* If realloc() fails the original block is left untouched  */
-    if (!newptr)
-    {
-        return 0;
-    }
-
-    /* Copy the old data. */
-    oldsize = *SIZE_PTR(oldptr);
-    if (size < oldsize)
-        oldsize = size;
-    memcpy(newptr, oldptr, oldsize);
-
-    /* Free the old block. */
+  /* If size == 0 then this is just free, and we return NULL. */
+  if(size == 0) {
     free(oldptr);
+    return 0;
+  }
 
-    return newptr;
+  /* If oldptr is NULL, then this is just malloc. */
+  if(oldptr == NULL) {
+    return malloc(size);
+  }
+
+  newptr = malloc(size);
+
+  /* If realloc() fails the original block is left untouched  */
+  if(!newptr) {
+    return 0;
+  }
+
+  /* Copy the old data. */
+  oldsize = *SIZE_PTR(oldptr);
+  if(size < oldsize) oldsize = size;
+  memcpy(newptr, oldptr, oldsize);
+
+  /* Free the old block. */
+  free(oldptr);
+
+  return newptr;
 }
 
 /*
  * calloc - Allocate the block and set it to zero.
  */
-void *calloc(size_t nmemb, size_t size)
+void *calloc (size_t nmemb, size_t size)
 {
-    size_t bytes = nmemb * size;
-    void *newptr;
+  size_t bytes = nmemb * size;
+  void *newptr;
 
-    newptr = malloc(bytes);
-    memset(newptr, 0, bytes);
+  newptr = malloc(bytes);
+  memset(newptr, 0, bytes);
 
-    return newptr;
+  return newptr;
 }
 
 /*
  * mm_checkheap - There are no bugs in my code, so I don't need to check,
  *      so nah!
  */
-void mm_checkheap(int verbose)
-{
-    /*Get gcc to be quiet. */
-    verbose = verbose;
+void mm_checkheap(int verbose){
+	/*Get gcc to be quiet. */
+	verbose = verbose;
 }
