@@ -14,7 +14,7 @@
 #define PUT(p, val) (*(unsigned int *)(p) = (val))
 
 // read the size and allocated fields from address p
-#define GET_SIZE(p) (GET(p) & -0x7) // including header and footer size
+#define GET_SIZE(p) (GET(p) & ~0x7) // including header and footer size
 #define GET_ALLOC(p) (GET(p) & 0x1)
 
 // given block ptr bp, compute address of its header and footer
