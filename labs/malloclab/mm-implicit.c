@@ -1,6 +1,6 @@
 /*
  * mm-implicit.c
- * implicit free list with first fit allocation strategy
+ * implicit free list with next fit allocation strategy
  */
 #include <assert.h>
 #include <stdio.h>
@@ -262,8 +262,7 @@ static void *find_fit(size_t asize)
 {
     char *curr = next_fit_start;
 
-    for (; GET_SIZE((HDRP(next_fit_start))) > 0;
-         next_fit_start = NEXT_BLKP(next_fit_start))
+    for (; GET_SIZE((HDRP(next_fit_start))) > 0; next_fit_start = NEXT_BLKP(next_fit_start))
         if (!GET_ALLOC(HDRP(next_fit_start)) && (asize <= GET_SIZE(HDRP(next_fit_start))))
             return next_fit_start;
 
