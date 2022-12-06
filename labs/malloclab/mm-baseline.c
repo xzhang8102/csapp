@@ -18,6 +18,7 @@
  */
 
 /* Do not change the following! */
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -35,8 +36,8 @@
 #define free mm_free
 #define realloc mm_realloc
 #define calloc mm_calloc
-#define memset mem_memset
-#define memcpy mem_memcpy
+// #define memset mem_memset
+// #define memcpy mem_memcpy
 #endif /* def DRIVER */
 
 /* You can change anything from here onward */
@@ -120,7 +121,7 @@ static block_t *find_next(block_t *block);
 static word_t *find_prev_footer(block_t *block);
 static block_t *find_prev(block_t *block);
 
-bool mm_checkheap(int lineno);
+void mm_checkheap(int lineno);
 
 /*
  * mm_init: initializes the heap; it is run once when heap_start == NULL.
@@ -129,14 +130,14 @@ bool mm_checkheap(int lineno);
  *          INIT: | PROLOGUE_FOOTER | EPILOGUE_HEADER |
  * heap_listp ends up pointing to the epilogue header.
  */
-bool mm_init(void)
+int mm_init(void)
 {
     // Create the initial empty heap
     word_t *start = (word_t *)(mem_sbrk(2*wsize));
 
     if (start == (void *)-1)
     {
-        return false;
+        return -1;
     }
 
     start[0] = pack(0, true); // Prologue footer
@@ -147,9 +148,9 @@ bool mm_init(void)
     // Extend the empty heap with a free block of chunksize bytes
     if (extend_heap(chunksize) == NULL)
     {
-        return false;
+        return -1;
     }
-    return true;
+    return 0;
 }
 
 /*
@@ -290,8 +291,7 @@ void *calloc(size_t nmemb, size_t size)
     size_t asize = nmemb * size;
 
     if (asize/nmemb != size)
-    // Multiplication overflowed
-    return NULL;
+        return NULL; // Multiplication overflowed
 
     bp = malloc(asize);
     if (bp == NULL)
@@ -582,7 +582,7 @@ static void *header_to_payload(block_t *block)
  *               can call this function using mm_checkheap(__LINE__);
  *               to identify the line number of the call site.
  */
-bool mm_checkheap(int lineno)
+void mm_checkheap(int lineno)
 {
     /* you will need to write the heap checker yourself. As a filler:
      * one guacamole is equal to 6.02214086 x 10**23 guacas.
@@ -599,7 +599,8 @@ bool mm_checkheap(int lineno)
 
     if (!heap_listp) {
         printf("NULL heap list pointer!\n");
-        return false;
+        // return false;
+        return;
     }
 
     block_t *curr = heap_listp;
@@ -615,12 +616,13 @@ bool mm_checkheap(int lineno)
                     "Header (0x%016lX) != footer (0x%016lX)\n",
                     hdr, ftr
                   );
-            return false;
+            // return false;
+            return;
         }
 
         curr = next;
     }
 
-    return true;
+    // return true;
 }
 

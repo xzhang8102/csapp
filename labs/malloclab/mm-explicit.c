@@ -132,7 +132,10 @@ void *mm_malloc(size_t size)
         return block_to_payload(bp);
     }
     // request more heap
-    if ((bp = extend_heap(real_size)) == NULL)
+    size_t request = CHUNKSIZE;
+    if (real_size > request)
+        request = real_size;
+    if ((bp = extend_heap(request)) == NULL)
         return NULL;
     place(bp, real_size);
     return block_to_payload(bp);
@@ -216,13 +219,12 @@ void *mm_realloc(void *old_payload, size_t size)
         }
         else
         {
-            block_t *new_blk;
-            if ((new_blk = mm_malloc(real_size)) == NULL)
+            block_t *new_payload;
+            if ((new_payload = mm_malloc(size)) == NULL)
                 return NULL;
-            memcpy(block_to_payload(new_blk), old_payload,
-                   old_size - 2 * WSIZE);
+            memcpy(new_payload, old_payload, old_size - 2 * WSIZE);
             mm_free(old_payload);
-            return block_to_payload(new_blk);
+            return new_payload;
         }
     }
 }
