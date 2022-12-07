@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "memlib.h"
 #include "mm.h"
@@ -75,6 +76,9 @@ static void *coalesce(void *header);
 static void link_blk(void *header);
 static void remove_blk(void *header);
 static int find_size_class_index(size_t size);
+static size_t calc_real_size(size_t size);
+static void *first_fit(size_t size);
+static void place(void *header, size_t size);
 
 static size_t pack(size_t size, bool alloc);
 static size_t extract_size(void *ptr);
@@ -131,13 +135,162 @@ int mm_init(void)
     return 0;
 }
 
+// return pointer to payload
+void *mm_malloc(size_t size)
+{
+    if (size == 0)
+        return NULL;
+
+    size_t real_size = calc_real_size(size);
+
+    void *header;
+    if ((header = first_fit(real_size)) != NULL)
+    {
+#ifdef DEBUG
+        dbg_ensures(!extract_alloc(header));
+#endif
+        place(header, real_size);
+#ifdef DEBUG
+        dbg_ensures(extract_alloc(header));
+#endif
+        return header_to_payload(header);
+    }
+
+    size_t request = CHUNKSIZE;
+    if (real_size > request)
+        request = real_size;
+    if ((header = extend_heap(request)) == NULL)
+        return NULL;
+    place(header, real_size);
+    return header_to_payload(header);
+}
+
+void mm_free(void *payload)
+{
+    if (payload == NULL)
+        return;
+    void *header = payload_to_header(payload);
+    size_t size = extract_size(header);
+    write_header(header, size, false);
+    write_header(header, size, false);
+    coalesce(header);
+}
+
+void *mm_realloc(void *old_payload, size_t size)
+{
+    if (old_payload == NULL)
+        return mm_malloc(size);
+    if (size == 0)
+    {
+        free(old_payload);
+        return NULL;
+    }
+    void *header = payload_to_header(old_payload);
+    if (!extract_alloc(header))
+        return NULL;
+
+    size_t real_size = calc_real_size(size);
+    size_t curr_size = extract_size(header);
+
+    if (curr_size >= real_size)
+    {
+        place(header, real_size);
+        return old_payload;
+    }
+    else
+    {
+        void *prev = header_prev_neighbor(header);
+        void *next = header_next_neighbor(header);
+        bool prev_alloc = extract_alloc(prev);
+        bool next_alloc = extract_alloc(next);
+        size_t prev_size = extract_size(prev);
+        size_t next_size = extract_size(next);
+        size_t test_size = curr_size;
+        if (!prev_alloc)
+            test_size += prev_size;
+        if (!next_alloc)
+            test_size += next_size;
+
+        if (test_size >= real_size)
+        {
+            if (prev_alloc && !next_alloc)
+            {
+                remove_blk(next);
+                write_header(header, test_size, true);
+                write_footer(header, test_size, true);
+                place(header, real_size);
+                return old_payload;
+            }
+            else if (!prev_alloc)
+            {
+                remove_blk(prev);
+                if (!next_alloc)
+                    remove_blk(next);
+                header = prev;
+                write_header(header, test_size, true);
+                write_footer(header, test_size, true);
+                place(header, real_size);
+                memcpy(header_to_payload(header), old_payload,
+                       curr_size - DSIZE);
+                return header_to_payload(header);
+            }
+            else
+                return NULL;
+        }
+        else
+        {
+            void *new_payload;
+            if ((new_payload = mm_malloc(size)) == NULL)
+                return NULL;
+            memcpy(new_payload, old_payload, curr_size - DSIZE);
+            mm_free(old_payload);
+            return new_payload;
+        }
+    }
+}
+
+void *mm_calloc(size_t nmemb, size_t size)
+{
+    size_t bytes = nmemb * size;
+    void *payload = mm_malloc(bytes);
+    if (payload != NULL)
+        memset(payload, 0, bytes);
+    return payload;
+}
+
+void mm_checkheap(int verbose)
+{
+    (void)verbose;
+    int list_cnt = 0, free_cnt = 0, i = 0;
+    void *ptr;
+    while (i < SIZE_CLASS_NUMBER)
+    {
+        for (ptr = size_class_start[i].next; ptr != NULL;
+             ptr = *(header_to_next(ptr)))
+        {
+            list_cnt++;
+        }
+        i++;
+    }
+
+    void *prologue_header =
+        ((char *)size_class_start) + SIZE_CLASS_NUMBER * DSIZE + WSIZE;
+    for (ptr = header_next_neighbor(prologue_header); extract_size(ptr) != 0;
+         ptr = header_next_neighbor(ptr))
+    {
+        if (!extract_alloc(ptr))
+            free_cnt++;
+    }
+    assert(list_cnt == free_cnt);
+}
+
 // return the header of a free block
 static void *extend_heap(size_t size)
 {
-    void *ptr;
 #ifdef DEBUG
     dbg_ensures(size > MIN_BLOCK_SIZE);
 #endif
+    void *ptr;
     size_t real_size = DSIZE * ((size + DSIZE - 1) / DSIZE);
     if ((ptr = mem_sbrk(real_size)) == (void *)-1)
         return NULL;
@@ -149,8 +302,6 @@ static void *extend_heap(size_t size)
     void *epilogue_header = header_next_neighbor(header);
     write_header(epilogue_header, 0, true);
 
-    *header_to_next(header) = NULL;
-    *header_to_prev(header) = NULL;
     return coalesce(header);
 }
 
@@ -169,7 +320,7 @@ static void *coalesce(void *header)
     size_t next_size = extract_size(next_neighbor);
 
     size_t self_size = extract_size(header);
-    size_t new_size;
+    size_t new_size = self_size;
 
     if (prev_alloc && next_alloc)
     {
@@ -179,7 +330,7 @@ static void *coalesce(void *header)
     else if (prev_alloc && !next_alloc)
     {
         remove_blk(next_neighbor);
-        new_size = self_size + next_size;
+        new_size += next_size;
         write_header(header, new_size, false);
         write_footer(header, new_size, false);
         link_blk(header);
@@ -188,7 +339,7 @@ static void *coalesce(void *header)
     else if (!prev_alloc && next_alloc)
     {
         remove_blk(prev_neighbor);
-        new_size = self_size + prev_size;
+        new_size += prev_size;
         write_header(prev_neighbor, new_size, false);
         write_footer(prev_neighbor, new_size, false);
         link_blk(prev_neighbor);
@@ -198,11 +349,53 @@ static void *coalesce(void *header)
     {
         remove_blk(prev_neighbor);
         remove_blk(next_neighbor);
-        new_size = self_size + prev_size + next_size;
+        new_size += prev_size + next_size;
         write_header(prev_neighbor, new_size, false);
         write_footer(prev_neighbor, new_size, false);
         link_blk(prev_neighbor);
         return prev_neighbor;
+    }
+}
+
+static void *first_fit(size_t size)
+{
+    int index = find_size_class_index(size - DSIZE);
+    void *ptr;
+    while (index < SIZE_CLASS_NUMBER)
+    {
+        for (ptr = size_class_start[index].next; ptr != NULL;
+             ptr = *(header_to_next(ptr)))
+        {
+            if (!extract_alloc(ptr) && extract_size(ptr) >= size)
+                return ptr;
+        }
+        index++;
+    }
+
+    return NULL;
+}
+
+static void place(void *header, size_t size)
+{
+    if (!extract_alloc(header))
+        remove_blk(header);
+    size_t curr_size = extract_size(header);
+    if (curr_size < size)
+        return;
+    if (curr_size - size < MIN_BLOCK_SIZE)
+    {
+        write_header(header, curr_size, true);
+        write_footer(header, curr_size, true);
+    }
+    else
+    {
+        write_header(header, size, true);
+        write_footer(header, size, true);
+
+        header = header_next_neighbor(header);
+        write_header(header, curr_size - size, false);
+        write_footer(header, curr_size - size, false);
+        link_blk(header);
     }
 }
 
@@ -211,7 +404,12 @@ static void remove_blk(void *header)
     void *prev = *(header_to_prev(header));
     void *next = *(header_to_next(header));
     if (prev)
-        *(header_to_next(prev)) = next;
+    {
+        if (prev < (void *)(size_class_start + SIZE_CLASS_NUMBER))
+            *((void **)prev) = next;
+        else
+            *(header_to_next(prev)) = next;
+    }
     if (next)
         *(header_to_prev(next)) = prev;
     *(header_to_prev(header)) = NULL;
@@ -260,6 +458,14 @@ static int find_size_class_index(size_t size)
         return 7;
 }
 
+static size_t calc_real_size(size_t size)
+{
+    if (size <= 2 * DSIZE)
+        return MIN_BLOCK_SIZE;
+    else
+        return DSIZE + DSIZE * ((size + (DSIZE)-1) / DSIZE);
+}
+
 static size_t pack(size_t size, bool alloc)
 {
     return alloc ? (size | 1) : size;
@@ -299,17 +505,11 @@ static void *payload_to_header(void *payload)
 
 static void **header_to_prev(void *header)
 {
-#ifdef DEBUG
-    dbg_assert(!extract_alloc(header));
-#endif
     return (void **)(((char *)header) + WSIZE);
 }
 
 static void **header_to_next(void *header)
 {
-#ifdef DEBUG
-    dbg_assert(!extract_alloc(header));
-#endif
     return (void **)(((char *)header) + WSIZE + DSIZE);
 }
 
