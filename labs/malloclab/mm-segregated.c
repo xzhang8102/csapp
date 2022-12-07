@@ -51,18 +51,7 @@ typedef struct
     void *next;
 } size_class_head;
 
-/* size class (payload size):
- * |    0 -   16 |
- * |   17 -   64 |
- * |   65 -  128 |
- * |  129 -  256 |
- * |  257 -  512 |
- * |  513 - 2048 |
- * | 2049 - 4096 |
- * | 4097 -    ∞ |
- */
-
-static const size_t UPPER_0 = 16;
+static const size_t UPPER_0 = 32;
 static const size_t UPPER_1 = 64;
 static const size_t UPPER_2 = 128;
 static const size_t UPPER_3 = 256;
@@ -359,7 +348,7 @@ static void *coalesce(void *header)
 
 static void *first_fit(size_t size)
 {
-    int index = find_size_class_index(size - DSIZE);
+    int index = find_size_class_index(size);
     void *ptr;
     while (index < SIZE_CLASS_NUMBER)
     {
@@ -419,7 +408,7 @@ static void remove_blk(void *header)
 static void link_blk(void *header)
 {
     size_t size = extract_size(header);
-    int index = find_size_class_index(size - DSIZE);
+    int index = find_size_class_index(size);
     void *next = size_class_start[index].next;
     size_class_start[index].next = header;
     *(header_to_prev(header)) = &(size_class_start[index]);
@@ -430,16 +419,6 @@ static void link_blk(void *header)
 
 static int find_size_class_index(size_t size)
 {
-    /* size class (payload size):
-     * |    0 -   16 |
-     * |   17 -   64 |
-     * |   65 -  128 |
-     * |  129 -  256 |
-     * |  257 -  512 |
-     * |  513 - 2048 |
-     * | 2049 - 4096 |
-     * | 4097 -    ∞ |
-     */
     if (size <= UPPER_0)
         return 0;
     else if (size > UPPER_0 && size <= UPPER_1)
