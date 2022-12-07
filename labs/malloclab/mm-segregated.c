@@ -80,6 +80,7 @@ static void **header_to_prev(void *header);
 static void **header_to_next(void *header);
 static void *header_next_neighbor(void *header);
 static void *header_prev_neighbor(void *header);
+static inline size_t max_size(size_t a, size_t b);
 
 static size_class_head *size_class_start;
 
@@ -145,10 +146,7 @@ void *mm_malloc(size_t size)
         return header_to_payload(header);
     }
 
-    size_t request = CHUNKSIZE;
-    if (real_size > request)
-        request = real_size;
-    if ((header = extend_heap(request)) == NULL)
+    if ((header = extend_heap(max_size(CHUNKSIZE, real_size))) == NULL)
         return NULL;
     place(header, real_size);
     return header_to_payload(header);
@@ -409,12 +407,29 @@ static void link_blk(void *header)
 {
     size_t size = extract_size(header);
     int index = find_size_class_index(size);
-    void *next = size_class_start[index].next;
-    size_class_start[index].next = header;
-    *(header_to_prev(header)) = &(size_class_start[index]);
-    *(header_to_next(header)) = next;
-    if (next != NULL)
-        *(header_to_prev(next)) = header;
+    void *first = size_class_start[index].next;
+    if (first == NULL || extract_size(first) >= size)
+    {
+        size_class_start[index].next = header;
+        *(header_to_prev(header)) = &(size_class_start[index]);
+        *(header_to_next(header)) = first;
+        if (first != NULL)
+            *(header_to_prev(first)) = header;
+    }
+    else
+    {
+        void *prev = first, *curr = *(header_to_next(first));
+        for (; curr != NULL; prev = curr, curr = *(header_to_next(curr)))
+        {
+            if (extract_size(curr) >= size)
+                break;
+        }
+        *(header_to_next(prev)) = header;
+        *(header_to_prev(header)) = prev;
+        *(header_to_next(header)) = curr;
+        if (curr != NULL)
+            *(header_to_prev(curr)) = header;
+    }
 }
 
 static int find_size_class_index(size_t size)
@@ -501,4 +516,9 @@ static void *header_prev_neighbor(void *header)
 {
     word_t prev_size = extract_size(((char *)header) - WSIZE);
     return ((char *)header) - prev_size;
+}
+
+static inline size_t max_size(size_t a, size_t b)
+{
+    return a > b ? a : b;
 }
