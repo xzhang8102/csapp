@@ -5,6 +5,9 @@
 
 source: https://www.cs.cmu.edu/afs/cs/academic/class/15213-f10/www/labs/malloclab-handout.tar
 
+The final allocator uses a segregated free list and saves footer space when a block is allocated.
+(final result is in the ./results/mm-final.txt file)
+
 ***********
 Main Files:
 ***********

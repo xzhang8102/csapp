@@ -42,7 +42,7 @@ static const size_t DSIZE = 2 * WSIZE;
 // (footer(4B) only for free blocks / padding(4B))
 static const size_t MIN_BLOCK_SIZE = 3 * DSIZE;
 static const int SIZE_CLASS_NUMBER = 8;
-static const size_t CHUNKSIZE = (1 << 12); // 4KB
+static const size_t CHUNKSIZE = (1 << 10);
 
 static const word_t ALLOC_MASK = 0x1;
 static const word_t PREV_ALLOC_MASK = 0x2;
@@ -165,7 +165,7 @@ void mm_free(void *payload)
     size_t size = extract_size(header);
     bool prev_alloc = extract_prev_alloc(header);
     write_header(header, size, prev_alloc, false);
-    write_header(header, size, prev_alloc, false);
+    write_footer(header, size, prev_alloc, false);
     coalesce(header);
 }
 
@@ -175,7 +175,7 @@ void *mm_realloc(void *old_payload, size_t size)
         return mm_malloc(size);
     if (size == 0)
     {
-        free(old_payload);
+        mm_free(old_payload);
         return NULL;
     }
     void *header = payload_to_header(old_payload);
@@ -279,6 +279,14 @@ void mm_checkheap(int verbose)
             free_cnt++;
     }
     assert(list_cnt == free_cnt);
+
+    void *prev = prologue_header, *curr = header_next_neighbor(prev);
+    do
+    {
+        assert(extract_alloc(prev) == extract_prev_alloc(curr));
+        prev = curr;
+        curr = header_next_neighbor(curr);
+    } while (extract_size(curr) > 0);
 }
 
 // return the header of a free block
@@ -321,6 +329,7 @@ static void *coalesce(void *header)
     if (prev_alloc && next_alloc)
     {
         link_blk(header);
+        write_header(next_neighbor, next_size, false, next_alloc);
         return header;
     }
     else if (prev_alloc && !next_alloc)
@@ -332,7 +341,8 @@ static void *coalesce(void *header)
         link_blk(header);
         // affect new neighbor
         next_neighbor = header_next_neighbor(header);
-        write_header(next_neighbor, extract_size(next_neighbor), false, extract_alloc(next_neighbor));
+        write_header(next_neighbor, extract_size(next_neighbor), false,
+                     extract_alloc(next_neighbor));
         return header;
     }
     else if (!prev_alloc && next_alloc)
@@ -345,6 +355,7 @@ static void *coalesce(void *header)
         write_header(prev_neighbor, new_size, alloc, false);
         write_footer(prev_neighbor, new_size, alloc, false);
         link_blk(prev_neighbor);
+        write_header(next_neighbor, next_size, false, next_alloc);
         return prev_neighbor;
     }
     else
@@ -360,7 +371,8 @@ static void *coalesce(void *header)
         link_blk(prev_neighbor);
         // affect new neighbor
         next_neighbor = header_next_neighbor(header);
-        write_header(next_neighbor, extract_size(next_neighbor), false, extract_alloc(next_neighbor));
+        write_header(next_neighbor, extract_size(next_neighbor), false,
+                     extract_alloc(next_neighbor));
         return prev_neighbor;
     }
 }
@@ -395,13 +407,10 @@ static void place(void *header, size_t size)
     if (curr_size - size < MIN_BLOCK_SIZE)
     {
         write_header(header, curr_size, prev_alloc, true);
-        if (!allocated)
-        {
-            // current block change from a free block to an allocated one
-            // affect its next neighbor
-            void *next_neighbor = header_next_neighbor(header);
-            write_header(next_neighbor, extract_size(next_neighbor), true, extract_alloc(next_neighbor));
-        }
+        // affect its next neighbor
+        void *next_neighbor = header_next_neighbor(header);
+        write_header(next_neighbor, extract_size(next_neighbor), true,
+                     extract_alloc(next_neighbor));
     }
     else
     {
@@ -420,7 +429,8 @@ static void remove_blk(void *header)
     void *next = *(header_to_next(header));
     if (prev)
     {
-        if (prev < (void *)(size_class_start + SIZE_CLASS_NUMBER))
+        if (prev < (void *)(size_class_start + SIZE_CLASS_NUMBER) &&
+            prev >= (void *)size_class_start)
             *((void **)prev) = next;
         else
             *(header_to_next(prev)) = next;
@@ -486,7 +496,8 @@ static size_t calc_real_size(size_t size)
     if (size <= min_payload)
         return MIN_BLOCK_SIZE;
     else
-        return MIN_BLOCK_SIZE + DSIZE * ((size - min_payload + DSIZE - 1) / DSIZE);
+        return MIN_BLOCK_SIZE +
+               DSIZE * ((size - min_payload + DSIZE - 1) / DSIZE);
 }
 
 static size_t pack(size_t size, bool prev_alloc, bool alloc)
