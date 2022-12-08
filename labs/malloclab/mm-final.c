@@ -226,9 +226,9 @@ void *mm_realloc(void *old_payload, size_t size)
                 header = prev_neighbor;
                 bool alloc = extract_prev_alloc(header);
                 write_header(header, test_size, alloc, true);
-                place(header, real_size);
                 memcpy(header_to_payload(header), old_payload,
                        curr_size - WSIZE);
+                place(header, real_size);
                 return header_to_payload(header);
             }
             else
@@ -397,8 +397,7 @@ static void *first_fit(size_t size)
 
 static void place(void *header, size_t size)
 {
-    bool allocated = extract_alloc(header);
-    if (!allocated)
+    if (!extract_alloc(header))
         remove_blk(header);
     size_t curr_size = extract_size(header);
     bool prev_alloc = extract_prev_alloc(header);
@@ -474,17 +473,17 @@ static int find_size_class_index(size_t size)
 {
     if (size <= UPPER_0)
         return 0;
-    else if (size > UPPER_0 && size <= UPPER_1)
+    else if (size <= UPPER_1)
         return 1;
-    else if (size > UPPER_1 && size <= UPPER_2)
+    else if (size <= UPPER_2)
         return 2;
-    else if (size > UPPER_2 && size <= UPPER_3)
+    else if (size <= UPPER_3)
         return 3;
-    else if (size > UPPER_3 && size <= UPPER_4)
+    else if (size <= UPPER_4)
         return 4;
-    else if (size > UPPER_4 && size <= UPPER_5)
+    else if (size <= UPPER_5)
         return 5;
-    else if (size > UPPER_5 && size <= UPPER_6)
+    else if (size <= UPPER_6)
         return 6;
     else
         return 7;
