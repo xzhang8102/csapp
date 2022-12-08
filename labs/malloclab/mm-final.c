@@ -1,7 +1,7 @@
 /*
- * mm-segregated.c
+ * mm.c
  *
- * implement the segregated fits allocator that is mentioned on page 864
+ * final submission for malloclab
  */
 #include <assert.h>
 #include <stdbool.h>
@@ -38,12 +38,14 @@
 typedef uint32_t word_t;
 static const size_t WSIZE = sizeof(word_t);
 static const size_t DSIZE = 2 * WSIZE;
-// header (4B) prev (8B) next (8B) footer(4B)
+// header (4B) prev (8B) next (8B)
+// (footer(4B) only for free blocks / padding(4B))
 static const size_t MIN_BLOCK_SIZE = 3 * DSIZE;
 static const int SIZE_CLASS_NUMBER = 8;
 static const size_t CHUNKSIZE = (1 << 12); // 4KB
 
 static const word_t ALLOC_MASK = 0x1;
+static const word_t PREV_ALLOC_MASK = 0x2;
 static const word_t SIZE_MASK = ~(word_t)0x7;
 
 typedef struct
@@ -69,11 +71,14 @@ static size_t calc_real_size(size_t size);
 static void *first_fit(size_t size);
 static void place(void *header, size_t size);
 
-static size_t pack(size_t size, bool alloc);
+static size_t pack(size_t size, bool prev_allc, bool alloc);
 static size_t extract_size(void *ptr);
+static bool extract_prev_alloc(void *ptr);
 static bool extract_alloc(void *ptr);
-static void write_header(void *header, size_t value, bool alloc);
-static void write_footer(void *header, size_t value, bool alloc);
+static void write_header(void *header, size_t value, bool prev_alloc,
+                         bool alloc);
+static void write_footer(void *header, size_t value, bool prev_alloc,
+                         bool alloc);
 static void *header_to_payload(void *header);
 static void *payload_to_header(void *payload);
 static void **header_to_prev(void *header);
@@ -96,8 +101,8 @@ int mm_init(void)
      * size class 6 (8B)
      * size class 7 (8B)
      * padding (4B)
-     * prologue header (4B) -- for coalescing
-     * prologue footer (4B)
+     * prologue header (4B)
+     * padding (4B)
      * epilogue header (4B)
      */
     size_class_start = (size_class_head *)mem_sbrk(10 * DSIZE);
@@ -110,15 +115,15 @@ int mm_init(void)
         size_class_start[i].next = NULL;
     }
     char *ptr = (char *)(size_class_start + SIZE_CLASS_NUMBER);
-    // padding
     *((word_t *)ptr) = 0;
     ptr += WSIZE;
     // prologue
-    write_header(ptr, DSIZE, true);
-    write_footer(ptr, DSIZE, true);
-    ptr += DSIZE;
+    write_header(ptr, DSIZE, true, true);
+    ptr += WSIZE;
+    *((word_t *)ptr) = 0;
+    ptr += WSIZE;
     // epilogue header
-    write_header(ptr, 0, true);
+    write_header(ptr, 0, true, true);
 
     if (extend_heap(CHUNKSIZE) == NULL)
         return -1;
@@ -158,8 +163,9 @@ void mm_free(void *payload)
         return;
     void *header = payload_to_header(payload);
     size_t size = extract_size(header);
-    write_header(header, size, false);
-    write_header(header, size, false);
+    bool prev_alloc = extract_prev_alloc(header);
+    write_header(header, size, prev_alloc, false);
+    write_header(header, size, prev_alloc, false);
     coalesce(header);
 }
 
@@ -186,15 +192,20 @@ void *mm_realloc(void *old_payload, size_t size)
     }
     else
     {
-        void *prev = header_prev_neighbor(header);
-        void *next = header_next_neighbor(header);
-        bool prev_alloc = extract_alloc(prev);
-        bool next_alloc = extract_alloc(next);
-        size_t prev_size = extract_size(prev);
-        size_t next_size = extract_size(next);
+        bool prev_alloc = extract_prev_alloc(header);
+        void *next_neighbor = header_next_neighbor(header);
+        bool next_alloc = extract_alloc(next_neighbor);
+        size_t next_size = extract_size(next_neighbor);
         size_t test_size = curr_size;
+        void *prev_neighbor;
+        size_t prev_size;
+
         if (!prev_alloc)
+        {
+            prev_neighbor = header_prev_neighbor(header);
+            prev_size = extract_size(prev_neighbor);
             test_size += prev_size;
+        }
         if (!next_alloc)
             test_size += next_size;
 
@@ -202,23 +213,22 @@ void *mm_realloc(void *old_payload, size_t size)
         {
             if (prev_alloc && !next_alloc)
             {
-                remove_blk(next);
-                write_header(header, test_size, true);
-                write_footer(header, test_size, true);
+                remove_blk(next_neighbor);
+                write_header(header, test_size, prev_alloc, true);
                 place(header, real_size);
                 return old_payload;
             }
             else if (!prev_alloc)
             {
-                remove_blk(prev);
+                remove_blk(prev_neighbor);
                 if (!next_alloc)
-                    remove_blk(next);
-                header = prev;
-                write_header(header, test_size, true);
-                write_footer(header, test_size, true);
+                    remove_blk(next_neighbor);
+                header = prev_neighbor;
+                bool alloc = extract_prev_alloc(header);
+                write_header(header, test_size, alloc, true);
                 place(header, real_size);
                 memcpy(header_to_payload(header), old_payload,
-                       curr_size - DSIZE);
+                       curr_size - WSIZE);
                 return header_to_payload(header);
             }
             else
@@ -229,7 +239,7 @@ void *mm_realloc(void *old_payload, size_t size)
             void *new_payload;
             if ((new_payload = mm_malloc(size)) == NULL)
                 return NULL;
-            memcpy(new_payload, old_payload, curr_size - DSIZE);
+            memcpy(new_payload, old_payload, curr_size - WSIZE);
             mm_free(old_payload);
             return new_payload;
         }
@@ -283,11 +293,12 @@ static void *extend_heap(size_t size)
         return NULL;
     // | epilogue header (4B) | ptr
     void *header = ((char *)ptr) - WSIZE;
-    write_header(header, real_size, false);
-    write_footer(header, real_size, false);
+    bool prev_alloc = extract_prev_alloc(header);
+    write_header(header, real_size, prev_alloc, false);
+    write_footer(header, real_size, prev_alloc, false);
     // new epilogue header
     void *epilogue_header = header_next_neighbor(header);
-    write_header(epilogue_header, 0, true);
+    write_header(epilogue_header, 0, false, true);
 
     return coalesce(header);
 }
@@ -299,15 +310,13 @@ static void *coalesce(void *header)
 #ifdef DEBUG
     dbg_assert(!extract_alloc(header));
 #endif
-    void *prev_neighbor = header_prev_neighbor(header);
     void *next_neighbor = header_next_neighbor(header);
-    bool prev_alloc = extract_alloc(prev_neighbor);
     bool next_alloc = extract_alloc(next_neighbor);
-    size_t prev_size = extract_size(prev_neighbor);
     size_t next_size = extract_size(next_neighbor);
 
-    size_t self_size = extract_size(header);
-    size_t new_size = self_size;
+    bool prev_alloc = extract_prev_alloc(header);
+
+    size_t new_size = extract_size(header);
 
     if (prev_alloc && next_alloc)
     {
@@ -318,28 +327,40 @@ static void *coalesce(void *header)
     {
         remove_blk(next_neighbor);
         new_size += next_size;
-        write_header(header, new_size, false);
-        write_footer(header, new_size, false);
+        write_header(header, new_size, prev_alloc, false);
+        write_footer(header, new_size, prev_alloc, false);
         link_blk(header);
+        // affect new neighbor
+        next_neighbor = header_next_neighbor(header);
+        write_header(next_neighbor, extract_size(next_neighbor), false, extract_alloc(next_neighbor));
         return header;
     }
     else if (!prev_alloc && next_alloc)
     {
+        void *prev_neighbor = header_prev_neighbor(header);
+        size_t prev_size = extract_size(prev_neighbor);
         remove_blk(prev_neighbor);
         new_size += prev_size;
-        write_header(prev_neighbor, new_size, false);
-        write_footer(prev_neighbor, new_size, false);
+        bool alloc = extract_prev_alloc(prev_neighbor);
+        write_header(prev_neighbor, new_size, alloc, false);
+        write_footer(prev_neighbor, new_size, alloc, false);
         link_blk(prev_neighbor);
         return prev_neighbor;
     }
     else
     {
+        void *prev_neighbor = header_prev_neighbor(header);
+        size_t prev_size = extract_size(prev_neighbor);
         remove_blk(prev_neighbor);
         remove_blk(next_neighbor);
         new_size += prev_size + next_size;
-        write_header(prev_neighbor, new_size, false);
-        write_footer(prev_neighbor, new_size, false);
+        bool alloc = extract_prev_alloc(prev_neighbor);
+        write_header(prev_neighbor, new_size, alloc, false);
+        write_footer(prev_neighbor, new_size, alloc, false);
         link_blk(prev_neighbor);
+        // affect new neighbor
+        next_neighbor = header_next_neighbor(header);
+        write_header(next_neighbor, extract_size(next_neighbor), false, extract_alloc(next_neighbor));
         return prev_neighbor;
     }
 }
@@ -364,24 +385,31 @@ static void *first_fit(size_t size)
 
 static void place(void *header, size_t size)
 {
-    if (!extract_alloc(header))
+    bool allocated = extract_alloc(header);
+    if (!allocated)
         remove_blk(header);
     size_t curr_size = extract_size(header);
+    bool prev_alloc = extract_prev_alloc(header);
     if (curr_size < size)
         return;
     if (curr_size - size < MIN_BLOCK_SIZE)
     {
-        write_header(header, curr_size, true);
-        write_footer(header, curr_size, true);
+        write_header(header, curr_size, prev_alloc, true);
+        if (!allocated)
+        {
+            // current block change from a free block to an allocated one
+            // affect its next neighbor
+            void *next_neighbor = header_next_neighbor(header);
+            write_header(next_neighbor, extract_size(next_neighbor), true, extract_alloc(next_neighbor));
+        }
     }
     else
     {
-        write_header(header, size, true);
-        write_footer(header, size, true);
+        write_header(header, size, prev_alloc, true);
 
         header = header_next_neighbor(header);
-        write_header(header, curr_size - size, false);
-        write_footer(header, curr_size - size, false);
+        write_header(header, curr_size - size, true, false);
+        write_footer(header, curr_size - size, true, false);
         coalesce(header);
     }
 }
@@ -454,37 +482,48 @@ static int find_size_class_index(size_t size)
 
 static size_t calc_real_size(size_t size)
 {
-    if (size <= 2 * DSIZE)
+    size_t min_payload = 2 * DSIZE + WSIZE;
+    if (size <= min_payload)
         return MIN_BLOCK_SIZE;
     else
-        return DSIZE + DSIZE * ((size + (DSIZE)-1) / DSIZE);
+        return MIN_BLOCK_SIZE + DSIZE * ((size - min_payload + DSIZE - 1) / DSIZE);
 }
 
-static size_t pack(size_t size, bool alloc)
+static size_t pack(size_t size, bool prev_alloc, bool alloc)
 {
-    return alloc ? (size | 1) : size;
+    size = prev_alloc ? (size | 2) : size;
+    size = alloc ? (size | 1) : size;
+    return size;
 }
 
 static size_t extract_size(void *ptr)
 {
-    return (*(word_t *)ptr) & SIZE_MASK;
+    return (*((word_t *)ptr)) & SIZE_MASK;
+}
+
+static bool extract_prev_alloc(void *ptr)
+{
+    return (*((word_t *)ptr)) & PREV_ALLOC_MASK;
 }
 
 static bool extract_alloc(void *ptr)
 {
-    return (*(word_t *)ptr) & ALLOC_MASK;
+    return (*((word_t *)ptr)) & ALLOC_MASK;
 }
 
-static void write_header(void *header, size_t size, bool alloc)
+static void write_header(void *header, size_t size, bool prev_alloc, bool alloc)
 {
-    *((word_t *)header) = pack(size, alloc);
+    *((word_t *)header) = pack(size, prev_alloc, alloc);
 }
 
-static void write_footer(void *header, size_t size, bool alloc)
+static void write_footer(void *header, size_t size, bool prev_alloc, bool alloc)
 {
+#ifdef DEBUG
+    dbg_assert(!extract_alloc(header));
+#endif
     word_t *footer =
         (word_t *)(((char *)header) + extract_size(header) - WSIZE);
-    *footer = pack(size, alloc);
+    *footer = pack(size, prev_alloc, alloc);
 }
 
 static void *header_to_payload(void *header)
@@ -514,6 +553,9 @@ static void *header_next_neighbor(void *header)
 
 static void *header_prev_neighbor(void *header)
 {
+#ifdef DEBUG
+    dbg_assert(!extract_prev_alloc(header));
+#endif
     word_t prev_size = extract_size(((char *)header) - WSIZE);
     return ((char *)header) - prev_size;
 }
