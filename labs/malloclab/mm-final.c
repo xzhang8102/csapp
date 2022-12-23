@@ -65,7 +65,7 @@ static const size_t UPPER_6 = 4096;
 static void *extend_heap(size_t size);
 static void *coalesce(void *header);
 static void link_blk(void *header);
-static void remove_blk(void *header);
+static void unlink_blk(void *header);
 static int find_size_class_index(size_t size);
 static size_t calc_real_size(size_t size);
 static void *first_fit(size_t size);
@@ -213,16 +213,16 @@ void *mm_realloc(void *old_payload, size_t size)
         {
             if (prev_alloc && !next_alloc)
             {
-                remove_blk(next_neighbor);
+                unlink_blk(next_neighbor);
                 write_header(header, test_size, prev_alloc, true);
                 place(header, real_size);
                 return old_payload;
             }
             else if (!prev_alloc)
             {
-                remove_blk(prev_neighbor);
+                unlink_blk(prev_neighbor);
                 if (!next_alloc)
-                    remove_blk(next_neighbor);
+                    unlink_blk(next_neighbor);
                 header = prev_neighbor;
                 bool alloc = extract_prev_alloc(header);
                 write_header(header, test_size, alloc, true);
@@ -334,7 +334,7 @@ static void *coalesce(void *header)
     }
     else if (prev_alloc && !next_alloc)
     {
-        remove_blk(next_neighbor);
+        unlink_blk(next_neighbor);
         new_size += next_size;
         write_header(header, new_size, prev_alloc, false);
         write_footer(header, new_size, prev_alloc, false);
@@ -349,7 +349,7 @@ static void *coalesce(void *header)
     {
         void *prev_neighbor = header_prev_neighbor(header);
         size_t prev_size = extract_size(prev_neighbor);
-        remove_blk(prev_neighbor);
+        unlink_blk(prev_neighbor);
         new_size += prev_size;
         bool alloc = extract_prev_alloc(prev_neighbor);
         write_header(prev_neighbor, new_size, alloc, false);
@@ -362,15 +362,15 @@ static void *coalesce(void *header)
     {
         void *prev_neighbor = header_prev_neighbor(header);
         size_t prev_size = extract_size(prev_neighbor);
-        remove_blk(prev_neighbor);
-        remove_blk(next_neighbor);
+        unlink_blk(prev_neighbor);
+        unlink_blk(next_neighbor);
         new_size += prev_size + next_size;
         bool alloc = extract_prev_alloc(prev_neighbor);
         write_header(prev_neighbor, new_size, alloc, false);
         write_footer(prev_neighbor, new_size, alloc, false);
         link_blk(prev_neighbor);
         // affect new neighbor
-        next_neighbor = header_next_neighbor(header);
+        next_neighbor = header_next_neighbor(prev_neighbor);
         write_header(next_neighbor, extract_size(next_neighbor), false,
                      extract_alloc(next_neighbor));
         return prev_neighbor;
@@ -398,7 +398,7 @@ static void *first_fit(size_t size)
 static void place(void *header, size_t size)
 {
     if (!extract_alloc(header))
-        remove_blk(header);
+        unlink_blk(header);
     size_t curr_size = extract_size(header);
     bool prev_alloc = extract_prev_alloc(header);
     if (curr_size < size)
@@ -422,7 +422,7 @@ static void place(void *header, size_t size)
     }
 }
 
-static void remove_blk(void *header)
+static void unlink_blk(void *header)
 {
     void *prev = *(header_to_prev(header));
     void *next = *(header_to_next(header));
